@@ -1,4 +1,6 @@
-# Java 27 adoption
+# Java 27 adoption — historical 0.2.0 decision
+
+> **Superseded in 0.3.0.** The minimum is Java 17, with supported LTS runtimes 17, 21, and 25, plus Java 27 (non-LTS). Use [Java support](JAVA-SUPPORT.md) for current requirements and test commands. The text below describes the earlier 0.2.0 baseline and is retained only as history; it is not the current support policy.
 
 Version 0.2.0 requires JDK 27 to build and Java 27 to run. It uses stable Java APIs only; neither the library nor its tests require `--enable-preview`. This is a runtime compatibility change from 0.1.0, which targeted Java 17. The SQL migration, persisted states, token/generation protocol, and public method signatures are unchanged.
 

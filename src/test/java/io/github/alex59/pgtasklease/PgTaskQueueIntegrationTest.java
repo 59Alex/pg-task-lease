@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +33,8 @@ class PgTaskQueueIntegrationTest {
     private String queue;
 
     @BeforeAll static void schema() throws Exception {
+        System.out.println("Integration runtime: " + System.getProperty("java.runtime.version")
+                + "; worker mode: " + (Runtime.version().feature() >= 21 ? "virtual" : "platform"));
         String url = System.getenv().getOrDefault("PG_TASK_TEST_URL",
                 "r2dbc:postgresql://localhost:5432/pg_task_lease_test");
         var options = ConnectionFactoryOptions.parse(url);
@@ -77,9 +80,10 @@ class PgTaskQueueIntegrationTest {
         assertTrue(client.claim(queue, "extra", 10, Duration.ofSeconds(30)).block(WAIT).isEmpty());
     }
 
-    @Test void virtualThreadWorkersCompleteEveryTaskWithoutDuplicateOwnership() throws Exception {
+    @Test void independentWorkersCompleteEveryTaskWithoutDuplicateOwnership() throws Exception {
         int workerCount = 12;
         int count = 96;
+        boolean virtualThreads = Runtime.version().feature() >= 21;
         var requests = java.util.stream.IntStream.range(0, count)
                 .mapToObj(i -> request(i % 3, 2)).toList();
         Flux.fromIterable(requests).concatMap(client::submit).then().block(WAIT);
@@ -87,12 +91,13 @@ class PgTaskQueueIntegrationTest {
         var start = new CountDownLatch(1);
         var results = new ArrayList<Future<List<UUID>>>();
         var completed = new ArrayList<UUID>();
-        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+        ExecutorService workers = workerExecutor(workerCount, virtualThreads);
+        try {
             try {
                 for (int i = 0; i < workerCount; i++) {
-                    String owner = "virtual-worker-" + i;
+                    String owner = (virtualThreads ? "virtual-worker-" : "platform-worker-") + i;
                     results.add(workers.submit(() -> {
-                        assertTrue(Thread.currentThread().isVirtual());
+                        assertEquals(virtualThreads, currentThreadIsVirtual());
                         var worker = new PgTaskQueue(connections);
                         var owned = new ArrayList<UUID>();
                         ready.countDown();
@@ -117,6 +122,10 @@ class PgTaskQueueIntegrationTest {
                 start.countDown();
             }
             for (var result : results) completed.addAll(result.get(15, TimeUnit.SECONDS));
+        } finally {
+            // ExecutorService is not AutoCloseable on Java 17. Stop test-owned workers even on failure.
+            workers.shutdownNow();
+            assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS), "Workers did not terminate");
         }
         assertEquals(count, completed.size());
         assertEquals(count, new HashSet<>(completed).size());
@@ -209,18 +218,18 @@ class PgTaskQueueIntegrationTest {
     @Test void recoveryHonorsBudgetBatchLimitAndLiveLeases() {
         for (int i = 0; i < 3; i++) client.submit(request(0, 1)).block(WAIT);
         var leases = client.claim(queue, "worker", 3, Duration.ofSeconds(30)).block(WAIT);
-        expire(leases.getFirst());
+        expire(leases.get(0));
         expire(leases.get(1));
         assertEquals(1, client.recoverExpired(queue, 1, Duration.ZERO).block(WAIT));
         assertEquals(1, client.recoverExpired(queue, 10, Duration.ZERO).block(WAIT));
         assertEquals(0, client.recoverExpired(queue, 10, Duration.ZERO).block(WAIT));
-        assertEquals(TaskState.DEAD, client.find(leases.getFirst().id()).block(WAIT).state());
+        assertEquals(TaskState.DEAD, client.find(leases.get(0).id()).block(WAIT).state());
         assertEquals(TaskState.LEASED, client.find(leases.get(2).id()).block(WAIT).state());
     }
 
     @Test void waitingForRowLockDoesNotAuthorizeExpiredAcknowledgement() {
         client.submit(request(0, 2)).block(WAIT);
-        TaskLease lease = client.claim(queue, "worker", 1, Duration.ofMillis(300)).block(WAIT).getFirst();
+        TaskLease lease = client.claim(queue, "worker", 1, Duration.ofMillis(300)).block(WAIT).get(0);
         Connection blocker = Mono.from(connections.create()).block(WAIT);
         try {
             Mono.from(blocker.beginTransaction()).block(WAIT);
@@ -261,7 +270,20 @@ class PgTaskQueueIntegrationTest {
     }
 
     private TaskLease claim() {
-        return client.claim(queue, "worker", 1, Duration.ofSeconds(30)).block(WAIT).getFirst();
+        return client.claim(queue, "worker", 1, Duration.ofSeconds(30)).block(WAIT).get(0);
+    }
+
+    private static ExecutorService workerExecutor(int count, boolean virtualThreads)
+            throws ReflectiveOperationException {
+        if (!virtualThreads) return Executors.newFixedThreadPool(count);
+        // Test-only bridge: retain --release 17 while exercising real virtual threads on 21/25.
+        // Reflection failure must fail the test instead of silently switching to platform threads.
+        return (ExecutorService) Executors.class.getMethod("newVirtualThreadPerTaskExecutor").invoke(null);
+    }
+
+    private static boolean currentThreadIsVirtual() throws ReflectiveOperationException {
+        if (Runtime.version().feature() < 21) return false;
+        return (boolean) Thread.class.getMethod("isVirtual").invoke(Thread.currentThread());
     }
 
     private void expire(TaskLease lease) {

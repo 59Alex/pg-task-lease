@@ -15,7 +15,15 @@ import java.util.UUID;
  */
 public record TaskRequest(UUID id, String queue, String payload, int priority,
                           int maxAttempts, Duration delay) {
-    /** Validates the request before any database operation. */
+    /**
+     * Validates the request before any database operation.
+     * @param id globally unique task id
+     * @param queue logical queue name
+     * @param payload opaque non-null content
+     * @param priority scheduling preference
+     * @param maxAttempts positive claim budget
+     * @param delay initial availability delay
+     */
     public TaskRequest {
         Objects.requireNonNull(id, "id");
         Checks.text(queue, "queue", 120);
