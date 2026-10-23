@@ -1,5 +1,11 @@
 # pg-task-lease
 
+**Language:** [English](README.md) · [Русский](README.ru.md)<br>
+**Library version:** [0.3.0](docs/0.3.0/en.md) · [All versions](docs/README.md)<br>
+**Java:** [17](docs/0.3.0/java.en.md#java-17) · [21](docs/0.3.0/java.en.md#java-21) · [25](docs/0.3.0/java.en.md#java-25) · [27](docs/0.3.0/java.en.md#java-27)
+
+[**Usage guide: capabilities, examples and expected results →**](docs/0.3.0/en.md)
+
 Reactive PostgreSQL task leasing for workers that need explicit ownership, bounded retries, and recovery after a crash.
 
 Submit a task, claim a short lease, process it, and acknowledge it with the same token and generation. An expired worker cannot acknowledge a task that another worker has reclaimed. The library uses R2DBC and Reactor; it does not require Spring or run a background scheduler.
