@@ -8,10 +8,15 @@ import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +75,56 @@ class PgTaskQueueIntegrationTest {
         assertEquals(count, new HashSet<>(all.stream().map(TaskLease::id).toList()).size());
         assertTrue(all.stream().allMatch(lease -> lease.attempt() == 1 && lease.generation() == 1));
         assertTrue(client.claim(queue, "extra", 10, Duration.ofSeconds(30)).block(WAIT).isEmpty());
+    }
+
+    @Test void virtualThreadWorkersCompleteEveryTaskWithoutDuplicateOwnership() throws Exception {
+        int workerCount = 12;
+        int count = 96;
+        var requests = java.util.stream.IntStream.range(0, count)
+                .mapToObj(i -> request(i % 3, 2)).toList();
+        Flux.fromIterable(requests).concatMap(client::submit).then().block(WAIT);
+        var ready = new CountDownLatch(workerCount);
+        var start = new CountDownLatch(1);
+        var results = new ArrayList<Future<List<UUID>>>();
+        var completed = new ArrayList<UUID>();
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            try {
+                for (int i = 0; i < workerCount; i++) {
+                    String owner = "virtual-worker-" + i;
+                    results.add(workers.submit(() -> {
+                        assertTrue(Thread.currentThread().isVirtual());
+                        var worker = new PgTaskQueue(connections);
+                        var owned = new ArrayList<UUID>();
+                        ready.countDown();
+                        assertTrue(start.await(5, TimeUnit.SECONDS));
+                        while (true) {
+                            // Blocking belongs only to this imperative test caller, never the R2DBC implementation.
+                            var batch = worker.claim(queue, owner, 4, Duration.ofSeconds(30)).block(WAIT);
+                            if (batch.isEmpty()) return List.copyOf(owned);
+                            for (TaskLease lease : batch) {
+                                assertEquals(owner, lease.owner());
+                                assertEquals(1, lease.attempt());
+                                assertEquals(1L, lease.generation());
+                                assertTrue(worker.heartbeat(lease, Duration.ofSeconds(30)).block(WAIT));
+                                assertTrue(worker.complete(lease).block(WAIT));
+                                owned.add(lease.id());
+                            }
+                        }
+                    }));
+                }
+                assertTrue(ready.await(5, TimeUnit.SECONDS));
+            } finally {
+                start.countDown();
+            }
+            for (var result : results) completed.addAll(result.get(15, TimeUnit.SECONDS));
+        }
+        assertEquals(count, completed.size());
+        assertEquals(count, new HashSet<>(completed).size());
+        assertEquals(new HashSet<>(requests.stream().map(TaskRequest::id).toList()), new HashSet<>(completed));
+        var snapshots = Flux.fromIterable(completed).flatMap(client::find, 8).collectList().block(WAIT);
+        assertEquals(count, snapshots.size());
+        assertTrue(snapshots.stream().allMatch(task -> task.state() == TaskState.DONE && task.attempts() == 1));
+        assertTrue(client.claim(queue, "after-workers", 1, Duration.ofSeconds(30)).block(WAIT).isEmpty());
     }
 
     @Test void priorityAndQueueIsolation() {
@@ -154,18 +209,18 @@ class PgTaskQueueIntegrationTest {
     @Test void recoveryHonorsBudgetBatchLimitAndLiveLeases() {
         for (int i = 0; i < 3; i++) client.submit(request(0, 1)).block(WAIT);
         var leases = client.claim(queue, "worker", 3, Duration.ofSeconds(30)).block(WAIT);
-        expire(leases.get(0));
+        expire(leases.getFirst());
         expire(leases.get(1));
         assertEquals(1, client.recoverExpired(queue, 1, Duration.ZERO).block(WAIT));
         assertEquals(1, client.recoverExpired(queue, 10, Duration.ZERO).block(WAIT));
         assertEquals(0, client.recoverExpired(queue, 10, Duration.ZERO).block(WAIT));
-        assertEquals(TaskState.DEAD, client.find(leases.get(0).id()).block(WAIT).state());
+        assertEquals(TaskState.DEAD, client.find(leases.getFirst().id()).block(WAIT).state());
         assertEquals(TaskState.LEASED, client.find(leases.get(2).id()).block(WAIT).state());
     }
 
     @Test void waitingForRowLockDoesNotAuthorizeExpiredAcknowledgement() {
         client.submit(request(0, 2)).block(WAIT);
-        TaskLease lease = client.claim(queue, "worker", 1, Duration.ofMillis(300)).block(WAIT).get(0);
+        TaskLease lease = client.claim(queue, "worker", 1, Duration.ofMillis(300)).block(WAIT).getFirst();
         Connection blocker = Mono.from(connections.create()).block(WAIT);
         try {
             Mono.from(blocker.beginTransaction()).block(WAIT);
@@ -206,7 +261,7 @@ class PgTaskQueueIntegrationTest {
     }
 
     private TaskLease claim() {
-        return client.claim(queue, "worker", 1, Duration.ofSeconds(30)).block(WAIT).get(0);
+        return client.claim(queue, "worker", 1, Duration.ofSeconds(30)).block(WAIT).getFirst();
     }
 
     private void expire(TaskLease lease) {

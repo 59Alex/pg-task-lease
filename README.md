@@ -16,7 +16,7 @@ This provides **at-least-once processing attempts within the configured retry bu
 
 ## Build and use
 
-The library targets Java 17. Building uses JDK 17 or newer and the included Gradle wrapper. Version `0.1.0` can be built and installed locally; Maven Central publication is not configured.
+Version `0.2.0` requires **Java 27** for building and running. Use JDK 27 and the included Gradle wrapper; no preview flags are needed. It can be built and installed locally; Maven Central publication is not configured. See [Java 27 adoption](docs/JAVA-27.md) for the implemented changes and compatibility boundary.
 
 ```sh
 ./gradlew publishToMavenLocal
@@ -27,7 +27,7 @@ In the consuming build:
 ```kotlin
 repositories { mavenLocal(); mavenCentral() }
 dependencies {
-    implementation("io.github.59alex:pg-task-lease:0.1.0")
+    implementation("io.github.59alex:pg-task-lease:0.2.0")
     runtimeOnly("org.postgresql:r2dbc-postgresql:1.1.3.RELEASE")
 }
 ```
@@ -99,7 +99,7 @@ docker stop pg-task-lease-tests
 
 The credentials above are disposable test fixtures. Set `PG_TASK_TEST_USER` and `PG_TASK_TEST_PASSWORD` if your test instance uses different credentials.
 
-Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate submissions, retries and exhaustion, heartbeat extension, stale token/generation rejection, expiry recovery, and expiry while an acknowledgement waits on a row lock. See [architecture and failure boundaries](docs/architecture.md).
+Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate submissions, retries and exhaustion, heartbeat extension, stale token/generation rejection, expiry recovery, and expiry while an acknowledgement waits on a row lock. A separate concurrency test starts 12 virtual-thread worker clients against PostgreSQL, processes 96 tasks, and checks unique ownership and durable completion. This is a correctness check, not a throughput benchmark. See [architecture and failure boundaries](docs/architecture.md).
 
 ## License
 

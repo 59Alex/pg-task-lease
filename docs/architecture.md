@@ -63,11 +63,13 @@ An attempt is counted when claimed, even if a process crashes before invoking th
 | One table, atomic statements, no broker | Small operational surface; task state is inspectable SQL. | Queue traffic competes with application database traffic. Benchmark your load and use a broker if it exceeds the database budget. |
 | Explicit leases and recovery | Crash recovery without process-local ownership. | Tune lease time and heartbeat cadence; monitor stale leases and retry rate. |
 | Priority plus `SKIP LOCKED` | Workers avoid waiting behind each other's selected jobs. | Not strict FIFO; low priorities can starve. Add an application-level fairness policy when required. |
-| Fixed `public.pg_task_lease` table | No dynamic SQL identifiers; predictable migration and permission surface. | No custom schema/table names in 0.1.0. Queue names isolate selection, not database access permissions. |
+| Fixed `public.pg_task_lease` table | No dynamic SQL identifiers; predictable migration and permission surface. | No custom schema/table names in 0.2.0. Queue names isolate selection, not database access permissions. |
 | Application-managed polling | No hidden threads or shutdown semantics. | The application must implement polling/backoff, heartbeat and recovery lifecycles. |
 | Separate auto-commit operation | Ownership commits before handler work; short transactions. | Submission is not atomic with application domain writes. Use a transactional outbox if that boundary matters. |
 
 The ready index favors queue and priority traversal. A large backlog of future tasks can increase filtering cost; measure plans and maintenance behavior with your workload. No throughput/SLA claim is implied by the integration suite.
+
+Version 0.2.0 raises the runtime baseline to Java 27 while retaining the same SQL schema and ownership protocol. [Java 27 adoption](JAVA-27.md) describes sequenced collection access and virtual-thread integration coverage. The production API remains non-blocking R2DBC; virtual threads are an application-side execution choice and do not change task guarantees.
 
 ## What to know
 

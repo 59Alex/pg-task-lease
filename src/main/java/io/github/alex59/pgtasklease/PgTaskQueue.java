@@ -174,7 +174,7 @@ public final class PgTaskQueue {
                         row.get("max_attempts", Integer.class), row.get("generation", Long.class),
                         instant(row, "available_at"), instant(row, "lease_until"),
                         row.get("owner", String.class), row.get("last_error", String.class)))
-                .flatMap(rows -> rows.isEmpty() ? Mono.empty() : Mono.just(rows.get(0)));
+                .flatMap(rows -> rows.isEmpty() ? Mono.empty() : Mono.just(rows.getFirst()));
     }
 
     private Mono<Boolean> leasedUpdate(TaskLease lease, String assignments, Consumer<Statement> bindExtra) {

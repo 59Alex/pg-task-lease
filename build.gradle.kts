@@ -4,28 +4,30 @@ plugins {
 }
 
 group = "io.github.59alex"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories { mavenCentral() }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    toolchain.languageVersion.set(JavaLanguageVersion.of(27))
+    sourceCompatibility = JavaVersion.VERSION_27
+    targetCompatibility = JavaVersion.VERSION_27
     withSourcesJar()
     withJavadocJar()
 }
 
 dependencies {
-    api("io.projectreactor:reactor-core:3.7.0")
+    api("io.projectreactor:reactor-core:3.8.8")
     api("io.r2dbc:r2dbc-spi:1.0.0.RELEASE")
     testImplementation("org.postgresql:r2dbc-postgresql:1.1.3.RELEASE")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release.set(17)
+    options.release.set(27)
 }
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
