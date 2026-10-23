@@ -75,7 +75,7 @@ Choose a stable task UUID before the first attempt. Reusing it prevents a retry 
 
 ```java
 var taskId = UUID.randomUUID();
-var request = new TaskRequest(taskId, "mail", "{"recipientId":42}",
+var request = new TaskRequest(taskId, "mail", "{\"recipientId\":42}",
     10, 3, Duration.ZERO);
 
 boolean inserted = queue.submit(request).block(wait);
@@ -101,7 +101,7 @@ A claim atomically selects eligible rows and records ownership. Independent work
 var queueName = "claim-demo-" + UUID.randomUUID();
 Flux.range(0, 2)
     .concatMap(i -> queue.submit(new TaskRequest(UUID.randomUUID(),
-        queueName, "{"kind":"demo"}", i, 2, Duration.ZERO)))
+        queueName, "{\"kind\":\"demo\"}", i, 2, Duration.ZERO)))
     .then().block(wait);
 
 var leases = Flux.merge(
@@ -220,19 +220,29 @@ The downloadable example is a finite workflow with assertions. It retains its ro
 Download Example.java, pom.xml and schema.sql together. Requirements: Java 17+, Maven 3.8+, and the locally installed pg-task-lease 0.3.0 artifact. The following database is disposable and listens only on localhost. Its credentials are demonstration fixtures.
 
 ```bash
-docker run --rm -d --name pg-lease-docs \
+bash <<'BASH'
+set -euo pipefail
+container_id=$(docker run --rm -d \
   -e POSTGRES_DB=pg_task_lease_demo -e POSTGRES_USER=lease_demo \
-  -e POSTGRES_PASSWORD=lease_demo_only -p 127.0.0.1:55433:5432 postgres:17-alpine
-until docker exec pg-lease-docs pg_isready -U lease_demo -d pg_task_lease_demo; do sleep 1; done
-docker exec -i pg-lease-docs psql -U lease_demo -d pg_task_lease_demo \
+  -e POSTGRES_PASSWORD=lease_demo_only -p 127.0.0.1::5432 postgres:17-alpine)
+trap 'docker stop "$container_id" >/dev/null' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+for attempt in {1..60}; do
+  if docker exec "$container_id" pg_isready -U lease_demo -d pg_task_lease_demo >/dev/null 2>&1; then break; fi
+  if [[ "$attempt" == 60 ]]; then echo 'PostgreSQL not ready' >&2; exit 1; fi
+  sleep 1
+done
+docker exec -i "$container_id" psql -U lease_demo -d pg_task_lease_demo \
   -v ON_ERROR_STOP=1 < schema.sql
-export TASKS_R2DBC_URL='r2dbc:postgresql://lease_demo:lease_demo_only@localhost:55433/pg_task_lease_demo'
+port=$(docker port "$container_id" 5432/tcp)
+export TASKS_R2DBC_URL="r2dbc:postgresql://lease_demo:lease_demo_only@127.0.0.1:${port##*:}/pg_task_lease_demo"
 mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 java -cp "target/classes:$(cat target/classpath.txt)" Example
-docker stop pg-lease-docs
+BASH
 ```
 
-Run from the downloaded example directory. Stop only the container you started; the final command removes this --rm demonstration container.
+Run from the downloaded example directory. The shell exits on failure, waits at most 60 seconds for readiness, and always stops only the container it created. The loopback port is dynamically assigned.
 
 ```text
 submit: inserted=true, duplicate=false
@@ -253,7 +263,7 @@ Expected output. The example checks queue transitions, not a real email/payment 
 
 > **Library test suite**
 >
-> The library suite is verified on Java 17/21/25/27 against real PostgreSQL. It includes 12 workers processing 96 tasks, stale-token checks and expiry during lock waits. Run it only against a disposable database ending in _test: the suite recreates its own table. The downloadable Example.java does not recreate tables.
+> The library suite is verified on Java 17/21/25/27 against real PostgreSQL. It includes 12 workers processing 96 tasks, stale-token checks and expiry during lock waits. Run it only against a disposable database ending in _test: the suite creates its table and refuses an existing one without deleting it. The downloadable Example.java does not recreate tables.
 
 ## Downloadable examples
 

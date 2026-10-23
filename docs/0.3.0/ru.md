@@ -75,7 +75,7 @@ var wait = Duration.ofSeconds(10);
 
 ```java
 var taskId = UUID.randomUUID();
-var request = new TaskRequest(taskId, "mail", "{"recipientId":42}",
+var request = new TaskRequest(taskId, "mail", "{\"recipientId\":42}",
     10, 3, Duration.ZERO);
 
 boolean inserted = queue.submit(request).block(wait);
@@ -101,7 +101,7 @@ System.out.println(inserted + ", " + duplicate);
 var queueName = "claim-demo-" + UUID.randomUUID();
 Flux.range(0, 2)
     .concatMap(i -> queue.submit(new TaskRequest(UUID.randomUUID(),
-        queueName, "{"kind":"demo"}", i, 2, Duration.ZERO)))
+        queueName, "{\"kind\":\"demo\"}", i, 2, Duration.ZERO)))
     .then().block(wait);
 
 var leases = Flux.merge(
@@ -220,19 +220,29 @@ System.out.println("Recovered in this pass: " + changed);
 Скачайте вместе Example.java, pom.xml и schema.sql. Нужны Java 17+, Maven 3.8+ и установленный локально pg-task-lease 0.3.0. База ниже временная и слушает только localhost. Её учётные данные предназначены исключительно для примера.
 
 ```bash
-docker run --rm -d --name pg-lease-docs \
+bash <<'BASH'
+set -euo pipefail
+container_id=$(docker run --rm -d \
   -e POSTGRES_DB=pg_task_lease_demo -e POSTGRES_USER=lease_demo \
-  -e POSTGRES_PASSWORD=lease_demo_only -p 127.0.0.1:55433:5432 postgres:17-alpine
-until docker exec pg-lease-docs pg_isready -U lease_demo -d pg_task_lease_demo; do sleep 1; done
-docker exec -i pg-lease-docs psql -U lease_demo -d pg_task_lease_demo \
+  -e POSTGRES_PASSWORD=lease_demo_only -p 127.0.0.1::5432 postgres:17-alpine)
+trap 'docker stop "$container_id" >/dev/null' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+for attempt in {1..60}; do
+  if docker exec "$container_id" pg_isready -U lease_demo -d pg_task_lease_demo >/dev/null 2>&1; then break; fi
+  if [[ "$attempt" == 60 ]]; then echo 'PostgreSQL not ready' >&2; exit 1; fi
+  sleep 1
+done
+docker exec -i "$container_id" psql -U lease_demo -d pg_task_lease_demo \
   -v ON_ERROR_STOP=1 < schema.sql
-export TASKS_R2DBC_URL='r2dbc:postgresql://lease_demo:lease_demo_only@localhost:55433/pg_task_lease_demo'
+port=$(docker port "$container_id" 5432/tcp)
+export TASKS_R2DBC_URL="r2dbc:postgresql://lease_demo:lease_demo_only@127.0.0.1:${port##*:}/pg_task_lease_demo"
 mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 java -cp "target/classes:$(cat target/classpath.txt)" Example
-docker stop pg-lease-docs
+BASH
 ```
 
-Запускайте из каталога скачанного примера. Останавливайте только созданный вами контейнер; последняя команда удалит этот демонстрационный контейнер с флагом --rm.
+Запускайте из каталога скачанного примера. Shell останавливается при ошибке, ждёт готовности не более 60 секунд и всегда останавливает только созданный им контейнер. Порт localhost назначается автоматически.
 
 ```text
 submit: inserted=true, duplicate=false
@@ -253,7 +263,7 @@ finished: 2 DONE, 1 DEAD; no ready tasks
 
 > **Тестовый набор библиотеки**
 >
-> Набор тестов библиотеки проверен на Java 17/21/25/27 с настоящим PostgreSQL. Он включает 12 работников на 96 задач, проверку старых токенов и истечение аренды во время ожидания блокировки. Запускайте тесты только на временной базе с именем, заканчивающимся на _test: набор пересоздаёт свою таблицу. Скачиваемый Example.java таблицы не пересоздаёт.
+> Набор тестов библиотеки проверен на Java 17/21/25/27 с настоящим PostgreSQL. Он включает 12 работников на 96 задач, проверку старых токенов и истечение аренды во время ожидания блокировки. Запускайте тесты только на временной базе с именем, заканчивающимся на _test: набор создаёт свою таблицу и отказывается работать поверх существующей, не удаляя данные. Скачиваемый Example.java таблицы не пересоздаёт.
 
 ## Скачиваемые примеры
 

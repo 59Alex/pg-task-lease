@@ -22,9 +22,20 @@ Submit a task, claim a short lease, process it, and acknowledge it with the same
 
 This provides **at-least-once processing attempts within the configured retry budget**, assuming workers and the recovery loop keep running and PostgreSQL preserves committed writes. It does **not** make external effects exactly once. A worker can finish an external operation and crash before acknowledging it; handlers must deduplicate by task id or use a transactional/idempotent external API.
 
+## Quick start
+
+From the checkout, with JDK 17+ and Docker:
+
+```bash
+./scripts/test-isolated.sh -PtestJavaVersion=17
+./gradlew publishToMavenLocal
+```
+
+Expected: the isolated integration suite passes and Maven Local receives version 0.3.0. Run the [complete consumer example](docs/0.3.0/en.md#8-run-the-example-and-diagnose-failures) to observe claims, heartbeat, retries and expiry recovery. Maven Central publication is not configured.
+
 ## Build and use
 
-Version `0.3.0` requires **Java 17 or newer** and supports **Java 17, 21, and 25 LTS**, plus **Java 27 (non-LTS)**. The published code is compiled with `--release 17`; no preview flags are needed. Use the included Gradle wrapper with JDK 17 or newer. It can be built and installed locally; Maven Central publication is not configured. See [Java support](docs/JAVA-SUPPORT.md) for compatibility and test commands.
+Version `0.3.0` requires **Java 17 or newer** and supports **Java 17, 21, and 25 LTS**, plus **Java 27 (non-LTS)**. The library code is compiled with `--release 17`; no preview flags are needed. Use the included Gradle wrapper with JDK 17 or newer. It can be built and installed locally; Maven Central publication is not configured. See [Java support](docs/JAVA-SUPPORT.md) for compatibility and test commands.
 
 ```sh
 ./gradlew publishToMavenLocal
@@ -93,21 +104,18 @@ No payload codecs, handler execution, automatic retry policy, polling, or retent
 
 ## Run the integration suite
 
-The suite requires a disposable database whose name ends in `_test`. It drops and recreates **only** `public.pg_task_lease` there. Missing PostgreSQL fails the build; integration tests are never silently skipped.
+The suite requires an explicitly configured, fresh disposable database whose name ends in `_test`. It creates `public.pg_task_lease` and refuses an existing table; it never drops data. Missing PostgreSQL fails the build; integration tests are never silently skipped.
 
 ```sh
-docker run --rm -d --name pg-task-lease-tests \
-  -e POSTGRES_DB=pg_task_lease_test -e POSTGRES_USER=lease_test \
-  -e POSTGRES_PASSWORD=lease_test_only -p 127.0.0.1:55432:5432 postgres:17-alpine
-
-# Wait until pg_isready reports ready, then:
-PG_TASK_TEST_URL=r2dbc:postgresql://localhost:55432/pg_task_lease_test ./gradlew build
-docker stop pg-task-lease-tests
+# From the repository root; requires Java 17+ and Docker.
+./scripts/test-isolated.sh -PtestJavaVersion=17
 ```
 
-The credentials above are disposable test fixtures. Set `PG_TASK_TEST_USER` and `PG_TASK_TEST_PASSWORD` if your test instance uses different credentials.
+The script starts a fresh PostgreSQL 17 container on a dynamically assigned loopback port, waits for readiness, runs the build, and stops only that container even on failure. Each invocation has its own database. To use your own disposable fixture, set `PG_TASK_TEST_URL` explicitly before running `./gradlew build`.
 
-Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate submissions, retries and exhaustion, heartbeat extension, stale token/generation rejection, expiry recovery, and expiry while an acknowledgement waits on a row lock. A separate concurrency test starts 12 worker clients against PostgreSQL, processes 96 tasks, and checks unique ownership and durable completion. It uses platform threads on Java 17 and actual virtual threads on Java 21/25/27. This is a correctness check, not a throughput benchmark. See [architecture and failure boundaries](docs/architecture.md).
+The script credentials are disposable test fixtures. Set `PG_TASK_TEST_USER` and `PG_TASK_TEST_PASSWORD` if your test instance uses different credentials.
+
+Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate submissions, retries and exhaustion, heartbeat extension, stale token/generation rejection, expiry recovery, and expiry while an acknowledgement waits on a row lock. A separate concurrency test starts 12 worker clients against PostgreSQL, processes 96 tasks, and checks unique ownership and durable completion. It uses platform threads on Java 17 and actual virtual threads on Java 21/25/27. This is a correctness check, not a throughput benchmark. See [architecture and failure boundaries](docs/architecture.md), plus [audit findings and verification](docs/AUDIT.md).
 
 ## License
 
@@ -137,6 +145,19 @@ Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate
 | 6. Повторять, ограничивать попытки и возвращать просроченные задачи | [Открыть](docs/0.3.0/ru.md#6-повторять-ограничивать-попытки-и-возвращать-просроченные-задачи) |
 | 7. Управлять жизненным циклом и пулом соединений | [Открыть](docs/0.3.0/ru.md#7-управлять-жизненным-циклом-и-пулом-соединений) |
 | 8. Запустить пример и разобрать ошибки | [Открыть](docs/0.3.0/ru.md#8-запустить-пример-и-разобрать-ошибки) |
+
+## Быстрый запуск
+
+Из рабочей копии репозитория, с JDK 17+ и Docker:
+
+```bash
+./scripts/test-isolated.sh -PtestJavaVersion=17
+./gradlew publishToMavenLocal
+```
+
+Первая команда создаёт отдельную PostgreSQL 17 на случайном порту localhost, запускает сборку с тестами и останавливает только свой контейнер, в том числе при ошибке. Вторая устанавливает версию 0.3.0 в Maven Local. Затем запустите [полный пример потребителя](docs/0.3.0/ru.md#8-запустить-пример-и-разобрать-ошибки): он проверит захват, heartbeat, повторы и восстановление просроченной аренды.
+
+Тестам нужна явно заданная новая временная база с суффиксом `_test`. Набор создаёт свою таблицу и отказывается работать поверх существующей; данные не удаляются. Работа API, конкурентные гонки и освобождение соединений описаны в [отчёте аудита](docs/AUDIT.md).
 
 ## Совместимость и установка
 

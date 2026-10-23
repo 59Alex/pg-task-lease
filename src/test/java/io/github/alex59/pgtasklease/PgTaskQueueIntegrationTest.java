@@ -35,8 +35,10 @@ class PgTaskQueueIntegrationTest {
     @BeforeAll static void schema() throws Exception {
         System.out.println("Integration runtime: " + System.getProperty("java.runtime.version")
                 + "; worker mode: " + (Runtime.version().feature() >= 21 ? "virtual" : "platform"));
-        String url = System.getenv().getOrDefault("PG_TASK_TEST_URL",
-                "r2dbc:postgresql://localhost:5432/pg_task_lease_test");
+        String url = System.getenv("PG_TASK_TEST_URL");
+        if (url == null || url.isBlank()) {
+            throw new IllegalArgumentException("Set PG_TASK_TEST_URL to a new disposable database ending in _test");
+        }
         var options = ConnectionFactoryOptions.parse(url);
         String database = (String) options.getRequiredValue(ConnectionFactoryOptions.DATABASE);
         if (!database.endsWith("_test")) {
@@ -47,7 +49,7 @@ class PgTaskQueueIntegrationTest {
                 .option(ConnectionFactoryOptions.PASSWORD, System.getenv().getOrDefault("PG_TASK_TEST_PASSWORD", "lease_test_only"))
                 .build());
         client = new PgTaskQueue(connections);
-        execute("DROP TABLE IF EXISTS public.pg_task_lease").block(WAIT);
+        // Refuse an existing table instead of deleting data in a mistakenly selected database.
         try (var schema = PgTaskQueue.class.getResourceAsStream("/pg-task-lease.sql")) {
             assertNotNull(schema);
             for (String sql : new String(schema.readAllBytes(), StandardCharsets.UTF_8).split(";")) {
@@ -244,6 +246,85 @@ class PgTaskQueueIntegrationTest {
         } finally {
             Mono.from(blocker.close()).block(WAIT);
         }
+    }
+
+    @Test void blockedHeartbeatUsesLatestExpiryInsteadOfShorteningAConcurrentRenewal() {
+        client.submit(request(0, 2)).block(WAIT);
+        TaskLease lease = claim();
+        Connection blocker = Mono.from(connections.create()).block(WAIT);
+        try {
+            Mono.from(blocker.beginTransaction()).block(WAIT);
+            Flux.from(blocker.createStatement("UPDATE public.pg_task_lease SET lease_until = clock_timestamp() + interval '1 hour' WHERE id = $1")
+                    .bind(0, lease.id()).execute()).concatMap(result -> result.getRowsUpdated()).then().block(WAIT);
+            var renewed = client.heartbeat(lease, Duration.ofMillis(1)).toFuture();
+            awaitBlockedQuery();
+            Mono.from(blocker.commitTransaction()).block(WAIT);
+            assertTrue(renewed.join());
+            assertTrue(client.find(lease.id()).block(WAIT).expiresAt().isAfter(lease.expiresAt().plusSeconds(3000)),
+                    "The short renewal must preserve the concurrent one-hour expiry");
+        } finally { Mono.from(blocker.close()).block(WAIT); }
+    }
+
+    @Test void blockedStaleAcknowledgementCannotMutateAReplacedCapability() {
+        client.submit(request(0, 2)).block(WAIT);
+        TaskLease lease = claim();
+        Connection blocker = Mono.from(connections.create()).block(WAIT);
+        UUID replacement = UUID.randomUUID();
+        try {
+            Mono.from(blocker.beginTransaction()).block(WAIT);
+            Flux.from(blocker.createStatement("UPDATE public.pg_task_lease SET lease_token = $1, generation = generation + 1 WHERE id = $2")
+                    .bind(0, replacement).bind(1, lease.id()).execute())
+                    .concatMap(result -> result.getRowsUpdated()).then().block(WAIT);
+            var acknowledged = client.complete(lease).toFuture();
+            awaitBlockedQuery();
+            Mono.from(blocker.commitTransaction()).block(WAIT);
+            assertFalse(acknowledged.join());
+            var snapshot = client.find(lease.id()).block(WAIT);
+            assertEquals(TaskState.LEASED, snapshot.state());
+            assertEquals(lease.generation() + 1, snapshot.generation());
+            var current = new TaskLease(lease.id(), queue, lease.payload(), lease.priority(), lease.attempt(),
+                    lease.maxAttempts(), replacement, snapshot.generation(), lease.owner(), snapshot.expiresAt());
+            assertTrue(client.complete(current).block(WAIT));
+        } finally { Mono.from(blocker.close()).block(WAIT); }
+    }
+
+    @Test void competingRecoveryPassesRecoverEachExpiredTaskOnlyOnce() {
+        for (int i = 0; i < 24; i++) client.submit(request(0, 2)).block(WAIT);
+        var leases = client.claim(queue, "lost-worker", 24, Duration.ofSeconds(30)).block(WAIT);
+        leases.forEach(this::expire);
+        int recovered = Flux.range(0, 6).flatMap(i -> client.recoverExpired(queue, 4, Duration.ofHours(1)), 6)
+                .reduce(0, Integer::sum).block(WAIT);
+        assertEquals(24, recovered);
+        assertEquals(0, client.recoverExpired(queue, 24, Duration.ZERO).block(WAIT));
+        assertTrue(client.claim(queue, "new-worker", 24, Duration.ofSeconds(30)).block(WAIT).isEmpty());
+        var snapshots = Flux.fromIterable(leases).flatMap(lease -> client.find(lease.id())).collectList().block(WAIT);
+        assertTrue(snapshots.stream().allMatch(task -> task.state() == TaskState.READY && task.attempts() == 1));
+    }
+
+    @Test void bindsPayloadQueueOwnerAndDiagnosticsWithoutExecutingTheirSqlText() {
+        String unusualQueue = queue + "'; SELECT 1; --";
+        String payload = "Привет ' \" \n; DROP TABLE public.pg_task_lease; --";
+        String owner = "worker'; SELECT 2; --";
+        String error = "upstream 'quote'; SELECT 3; --";
+        var task = new TaskRequest(UUID.randomUUID(), unusualQueue, payload, 0, 2, Duration.ZERO);
+        assertTrue(client.submit(task).block(WAIT));
+        var lease = client.claim(unusualQueue, owner, 1, Duration.ofSeconds(30)).block(WAIT).get(0);
+        assertEquals(payload, lease.payload());
+        assertEquals(owner, lease.owner());
+        assertTrue(client.fail(lease, Duration.ZERO, error).block(WAIT));
+        assertEquals(error, client.find(task.id()).block(WAIT).lastError());
+        assertEquals(1, client.claim(unusualQueue, "next", 1, Duration.ofSeconds(30)).block(WAIT).size());
+    }
+
+    private static void awaitBlockedQuery() {
+        // Observe an actual PostgreSQL lock wait; a sleep alone does not prove the tested interleaving.
+        Mono.defer(() -> Mono.usingWhen(Mono.from(connections.create()), connection ->
+                Flux.from(connection.createStatement("SELECT count(*) AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").execute())
+                        .concatMap(result -> result.map((row, metadata) -> row.get("waiting", Long.class)))
+                        .single(), connection -> Mono.from(connection.close())))
+                .filter(count -> count > 0)
+                .repeatWhenEmpty(repeats -> repeats.delayElements(Duration.ofMillis(10)))
+                .block(WAIT);
     }
 
     @Test void findMissingIsEmpty() { assertNull(client.find(UUID.randomUUID()).block(WAIT)); }

@@ -38,8 +38,7 @@ tasks.withType<Jar>().configureEach {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     // This suite deliberately fails if its disposable PostgreSQL is unavailable.
-    environment("PG_TASK_TEST_URL", System.getenv("PG_TASK_TEST_URL")
-        ?: "r2dbc:postgresql://localhost:5432/pg_task_lease_test")
+    System.getenv("PG_TASK_TEST_URL")?.let { environment("PG_TASK_TEST_URL", it) }
     testLogging { events("failed", "skipped") }
 }
 

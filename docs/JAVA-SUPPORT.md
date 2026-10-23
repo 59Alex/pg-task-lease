@@ -33,20 +33,20 @@ The executor factory and `Thread.isVirtual()` are accessed reflectively **only i
 
 The other reactive-concurrency, retry, expiry, stale-capability, and lock-wait tests run on every supported JDK. None is skipped simply because virtual threads are unavailable. This is correctness coverage, not a throughput benchmark or a proof of exactly-once external effects.
 
-The 0.3.0 local matrix was verified against PostgreSQL 17 with 16 tests passing and none skipped on each runtime: Temurin 17.0.21+9, Microsoft 21.0.9+10-LTS, Oracle 25.0.1+8-LTS-27, and Oracle 27.0.1.0.2. The test output records platform workers on 17 and virtual workers on 21/25/27. JAR classes use major version 61 with no preview marker, and Gradle publication metadata declares JVM 17.
+The OSS-007 local matrix was verified against PostgreSQL 17.6 with 28 tests passing and none skipped on each runtime: Temurin 17.0.21+9, Microsoft 21.0.9+10-LTS, Oracle 25.0.1+8-LTS-27, and Oracle 27.0.1.0.2. The test output records platform workers on 17 and virtual workers on 21/25/27. JAR classes use major version 61 with no preview marker, and Gradle publication metadata declares JVM 17.
 
 ## Run the matrix locally
 
-Install JDK 17 plus the JDKs you want to test and make them discoverable by Gradle toolchains. Start the disposable PostgreSQL described in the README, then run these commands sequentially against it:
+Install JDK 17 plus the JDKs you want to test and make them discoverable by Gradle toolchains. With Docker available, each command starts a separate disposable PostgreSQL instance:
 
 ```sh
-PG_TASK_TEST_URL=r2dbc:postgresql://localhost:55432/pg_task_lease_test ./gradlew clean build -PtestJavaVersion=17
-PG_TASK_TEST_URL=r2dbc:postgresql://localhost:55432/pg_task_lease_test ./gradlew test -PtestJavaVersion=21
-PG_TASK_TEST_URL=r2dbc:postgresql://localhost:55432/pg_task_lease_test ./gradlew test -PtestJavaVersion=25
-PG_TASK_TEST_URL=r2dbc:postgresql://localhost:55432/pg_task_lease_test ./gradlew test -PtestJavaVersion=27
+./scripts/test-isolated.sh -PtestJavaVersion=17
+./scripts/test-isolated.sh -PtestJavaVersion=21
+./scripts/test-isolated.sh -PtestJavaVersion=25
+./scripts/test-isolated.sh -PtestJavaVersion=27
 ```
 
-Changing `testJavaVersion` selects the compiler and test JVM; compilation still targets the Java 17 API and bytecode. The integration test reports the actual runtime version and worker mode in its test output. Each run recreates the test table, so do not run matrix entries simultaneously against the same database. CI uses isolated PostgreSQL instances per matrix job.
+Changing `testJavaVersion` selects the compiler and test JVM; compilation still targets the Java 17 API and bytecode. The integration test reports the actual runtime version and worker mode in its test output. Each run requires a fresh database and refuses an existing task table. CI uses isolated PostgreSQL instances per matrix job.
 
 ## Application responsibilities
 
@@ -65,3 +65,5 @@ The tested PostgreSQL R2DBC 1.1.3.RELEASE dependency graph includes Netty 4.1.11
 - Oracle: [Virtual threads](https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html).
 
 [← Back to documentation and versions / Назад к документации и версиям](index.md)
+
+[Audit details and verification limits](AUDIT.md).
