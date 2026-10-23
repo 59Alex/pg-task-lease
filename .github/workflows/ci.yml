@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [17, 21]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pg_task_lease_test
+          POSTGRES_USER: lease_test
+          POSTGRES_PASSWORD: lease_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lease_test -d pg_task_lease_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PG_TASK_TEST_URL: r2dbc:postgresql://localhost:5432/pg_task_lease_test
+      PG_TASK_TEST_USER: lease_test
+      PG_TASK_TEST_PASSWORD: lease_test_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build --no-daemon
