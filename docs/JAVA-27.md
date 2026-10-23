@@ -1,5 +1,7 @@
 # Java 27 adoption — historical 0.2.0 decision
 
+[← Back to documentation and versions / Назад к документации и версиям](index.md)
+
 > **Superseded in 0.3.0.** The minimum is Java 17, with supported LTS runtimes 17, 21, and 25, plus Java 27 (non-LTS). Use [Java support](JAVA-SUPPORT.md) for current requirements and test commands. The text below describes the earlier 0.2.0 baseline and is retained only as history; it is not the current support policy.
 
 Version 0.2.0 requires JDK 27 to build and Java 27 to run. It uses stable Java APIs only; neither the library nor its tests require `--enable-preview`. This is a runtime compatibility change from 0.1.0, which targeted Java 17. The SQL migration, persisted states, token/generation protocol, and public method signatures are unchanged.
@@ -49,3 +51,5 @@ The tested R2DBC PostgreSQL 1.1.3.RELEASE dependency graph includes Reactor Nett
 - Oracle: [Virtual threads](https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html), including executor lifetime and pinning behavior.
 - Java API: [SequencedCollection](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/SequencedCollection.html), stable since Java 21.
 - OpenJDK: [Synchronize virtual threads without pinning, JEP 491](https://openjdk.org/jeps/491).
+
+[← Back to documentation and versions / Назад к документации и версиям](index.md)

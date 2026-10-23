@@ -1,5 +1,7 @@
 # pg-task-lease — documentation / документация
 
+[← Back to repository README / Назад к README библиотеки](../README.md)
+
 Choose a release and language. / Выберите версию библиотеки и язык.
 
 | Version / Версия | English | Русский | Java |
@@ -12,4 +14,6 @@ The current guides explain each capability with a code example, expected behavio
 
 В актуальном руководстве каждая возможность разобрана на примере с результатом и ограничениями. Архивные ссылки закреплены на исходных коммитах и не служат инструкцией для 0.3.0.
 
-[English README](../README.md) · [Русский README](../README.ru.md)
+[English README](../README.md) · [Русский README](../README.md)
+
+[← Back to repository README / Назад к README библиотеки](../README.md)

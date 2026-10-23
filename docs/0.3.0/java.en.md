@@ -1,7 +1,9 @@
 # pg-task-lease 0.3.0 — Java: compatibility and adopted features
 
+[← Back to usage guide / Назад к руководству](en.md)
+
 [English](java.en.md) · [Русский](java.ru.md)<br>
-[Usage guide](en.md) · [Library versions](../README.md)
+[Usage guide](en.md) · [Library versions](../index.md)
 
 [Java 17](#java-17) · [Java 21](#java-21) · [Java 25](#java-25) · [Java 27](#java-27)
 
@@ -50,3 +52,5 @@ Java 27 is tested as an additional non-LTS runtime. The artifact does not add Ja
 | 0.3.0 | Java 17 restored; JVM 17/21/25/27 tested. Newer APIs do not raise artifact requirements. |
 
 [Compatibility and migration](../JAVA-SUPPORT.md)
+
+[← Back to usage guide / Назад к руководству](en.md)

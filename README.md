@@ -1,7 +1,9 @@
 # pg-task-lease
 
-**Language:** [English](README.md) · [Русский](README.ru.md)<br>
-**Library version:** [0.3.0](docs/0.3.0/en.md) · [All versions](docs/README.md)<br>
+<details name="readme-language">
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="assets/lang-en-dark.svg"><img src="assets/lang-en-light.svg" width="42" height="26" alt="EN"></picture></summary>
+
+**Library version:** [0.3.0](docs/0.3.0/en.md) · [All versions](docs/index.md)<br>
 **Java:** [17](docs/0.3.0/java.en.md#java-17) · [21](docs/0.3.0/java.en.md#java-21) · [25](docs/0.3.0/java.en.md#java-25) · [27](docs/0.3.0/java.en.md#java-27)
 
 [**Usage guide: capabilities, examples and expected results →**](docs/0.3.0/en.md)
@@ -110,3 +112,42 @@ Tests cover concurrent disjoint claims, queue/priority/delay behavior, duplicate
 ## License
 
 [MIT](LICENSE). Gradle wrapper files retain their upstream Apache-2.0 notices; the distribution's [license](gradle/licenses/LICENSE) and [notice](gradle/licenses/NOTICE) are included. Runtime dependencies keep their respective licenses.
+
+</details>
+
+<details name="readme-language" open>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="assets/lang-ru-dark.svg"><img src="assets/lang-ru-light.svg" width="42" height="26" alt="RU"></picture></summary>
+
+**Версия библиотеки:** [0.3.0](docs/0.3.0/ru.md) · [Все версии](docs/index.md)<br>
+**Java:** [17](docs/0.3.0/java.ru.md#java-17) · [21](docs/0.3.0/java.ru.md#java-21) · [25](docs/0.3.0/java.ru.md#java-25) · [27](docs/0.3.0/java.ru.md#java-27)
+
+[**Руководство: возможности, примеры и результаты →**](docs/0.3.0/ru.md)
+
+Реактивная аренда задач в PostgreSQL: атомарный захват, явное владение, ограниченные повторы и восстановление после остановки работника.
+
+## Возможности
+
+| Возможность | Пример и объяснение |
+| --- | --- |
+| 1. Подключить локально и подготовить PostgreSQL | [Открыть](docs/0.3.0/ru.md#1-подключить-локально-и-подготовить-postgresql) |
+| 2. Создать задачу и безопасно повторить отправку | [Открыть](docs/0.3.0/ru.md#2-создать-задачу-и-безопасно-повторить-отправку) |
+| 3. Забирать задачи несколькими работниками | [Открыть](docs/0.3.0/ru.md#3-забирать-задачи-несколькими-работниками) |
+| 4. Завершать только с действующей арендой | [Открыть](docs/0.3.0/ru.md#4-завершать-только-с-действующей-арендой) |
+| 5. Продлевать аренду долгой задачи | [Открыть](docs/0.3.0/ru.md#5-продлевать-аренду-долгой-задачи) |
+| 6. Повторять, ограничивать попытки и возвращать просроченные задачи | [Открыть](docs/0.3.0/ru.md#6-повторять-ограничивать-попытки-и-возвращать-просроченные-задачи) |
+| 7. Управлять жизненным циклом и пулом соединений | [Открыть](docs/0.3.0/ru.md#7-управлять-жизненным-циклом-и-пулом-соединений) |
+| 8. Запустить пример и разобрать ошибки | [Открыть](docs/0.3.0/ru.md#8-запустить-пример-и-разобрать-ошибки) |
+
+## Совместимость и установка
+
+Основной артефакт требует Java 17. Проверены JVM 17, 21, 25 и 27. Более новая JVM не повышает минимальную версию библиотеки.
+
+Специальных модулей с API Java 21/25/27 нет: библиотека использует базу Java 17.
+
+Артефакты устанавливаются из исходников через Maven Local; публикация в Maven Central пока не настроена. Точные зависимости, команды и требования примера находятся в руководстве.
+
+## Лицензия
+
+[MIT](LICENSE). Лицензии сторонних зависимостей сохраняются.
+
+</details>

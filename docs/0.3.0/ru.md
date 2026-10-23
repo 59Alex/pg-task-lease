@@ -1,8 +1,10 @@
 # pg-task-lease 0.3.0 — руководство
 
+[← Back to documentation and versions / Назад к документации и версиям](../index.md)
+
 [English](en.md) · [Русский](ru.md)
 
-[Версии](../README.md) · [README](../../README.ru.md) · [Возможности Java](java.ru.md)
+[Версии](../index.md) · [README](../../README.md) · [Возможности Java](java.ru.md)
 
 Реактивная аренда задач в PostgreSQL: атомарный захват, явное владение, ограниченные повторы и восстановление после остановки работника.
 
@@ -260,3 +262,5 @@ finished: 2 DONE, 1 DEAD; no ready tasks
 - [schema.sql](examples/schema.sql)
 
 [MIT](../../LICENSE)
+
+[← Back to documentation and versions / Назад к документации и версиям](../index.md)

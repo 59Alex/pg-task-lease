@@ -1,5 +1,7 @@
 # Ownership before execution
 
+[← Back to documentation and versions / Назад к документации и версиям](index.md)
+
 `pg-task-lease` coordinates background work for independent application processes using a PostgreSQL table as the ownership authority. Its boundary is task state; business handlers, external systems, polling cadence, connection pools, and data retention belong to the application.
 
 ## Context and components
@@ -76,3 +78,5 @@ Version 0.3.0 uses Java 17 as its minimum and supports the 17/21/25 LTS runtimes
 The library grants temporary ownership and fences task-state transitions. PostgreSQL owns time and durability; the host owns scheduling, handling, pool limits, and external idempotency. Retries are bounded. At-least-once attempts require active workers and recovery, and never imply exactly-once effects.
 
 Diagrams above are plain-text structural/state descriptions and require no renderer. References: PostgreSQL [locking clause](https://www.postgresql.org/docs/17/sql-select.html#SQL-FOR-UPDATE-SHARE), [date/time functions](https://www.postgresql.org/docs/17/functions-datetime.html), and the [PostgreSQL R2DBC driver](https://github.com/pgjdbc/r2dbc-postgresql).
+
+[← Back to documentation and versions / Назад к документации и версиям](index.md)

@@ -1,5 +1,7 @@
 # Java support
 
+[← Back to documentation and versions / Назад к документации и версиям](index.md)
+
 Version 0.3.0 has a **Java 17 minimum**. The supported runtime matrix is **Java 17, 21, and 25 LTS**, plus **Java 27 (non-LTS)**. Production classes and test sources compile with `--release 17`, and the library does not require preview flags, reflection, or an alternative Java-specific implementation.
 
 This supersedes the Java-27-only baseline of 0.2.0. The SQL schema, persisted task states, public method signatures, database-clock checks, token/generation fencing, and transaction boundaries remain unchanged. Existing task rows do not require a migration for this compatibility change.
@@ -61,3 +63,5 @@ The tested PostgreSQL R2DBC 1.1.3.RELEASE dependency graph includes Netty 4.1.11
 - Java 17 API: [ExecutorService](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/ExecutorService.html).
 - Java 21 API: [Executors](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/Executors.html#newVirtualThreadPerTaskExecutor()).
 - Oracle: [Virtual threads](https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html).
+
+[← Back to documentation and versions / Назад к документации и версиям](index.md)

@@ -1,8 +1,10 @@
 # pg-task-lease 0.3.0 — usage guide
 
+[← Back to documentation and versions / Назад к документации и версиям](../index.md)
+
 [English](en.md) · [Русский](ru.md)
 
-[Versions](../README.md) · [README](../../README.md) · [Java features](java.en.md)
+[Versions](../index.md) · [README](../../README.md) · [Java features](java.en.md)
 
 Reactive PostgreSQL task leasing: atomic claims, explicit ownership, bounded retries and recovery after worker failure.
 
@@ -260,3 +262,5 @@ Expected output. The example checks queue transitions, not a real email/payment 
 - [schema.sql](examples/schema.sql)
 
 [MIT](../../LICENSE)
+
+[← Back to documentation and versions / Назад к документации и версиям](../index.md)
